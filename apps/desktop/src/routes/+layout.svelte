@@ -2,6 +2,7 @@
 	import '../app.css';
 	import type { Snippet } from 'svelte';
 	import { tick } from 'svelte';
+	import { checkForUpdates } from '$lib/services/updater';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -78,7 +79,10 @@
 		const t1 = setTimeout(() => { phase = 'dematerialize'; }, 2200);
 		const t2 = setTimeout(() => { phase = 'black'; }, 3600);
 		const t3 = setTimeout(() => { phase = 'materialize'; }, 4200);
-		const t4 = setTimeout(() => { phase = 'done'; }, 5600);
+		const t4 = setTimeout(() => {
+			phase = 'done';
+			checkForUpdates();
+		}, 5600);
 		return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
 	});
 </script>

@@ -29,8 +29,17 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDMTA3NDYwMzk3M0VDQjgKUldTNDdITTVZSFFRL0g1TUdCQTFEbjNmSStvdmRxZ0JkenE5WkljeXRmekkrMzF5ZjlvZW9pSU8K",
+      "endpoints": [
+        "https://github.com/alexandrosnt/ZeusIX/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",

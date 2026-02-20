@@ -24,7 +24,9 @@
   "dependencies": {
     "@tauri-apps/api": "^2.3.0",
     "@tauri-apps/plugin-global-shortcut": "^2.3.1",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-stronghold": "^2.2.0",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "livekit-client": "^2.17.1",
     "shiki": "^3.22.0"
   }
