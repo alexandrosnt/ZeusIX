@@ -1,0 +1,87 @@
+/* --- ZeusIX Global Styles (extracted from index.html mockup) --- */
+
+:root {
+	/* Palette: macOS Dark Mode inspired */
+	--bg-app: #000000;
+	--bg-glass-heavy: rgba(28, 28, 30, 0.65);
+	--bg-glass-light: rgba(44, 44, 46, 0.4);
+	--bg-glass-lighter: rgba(58, 58, 60, 0.3);
+
+	/* Glass RGB components — for custom-opacity usage: rgba(var(--glass-light-rgb), 0.6) */
+	--glass-heavy-rgb: 28, 28, 30;
+	--glass-light-rgb: 44, 44, 46;
+	--glass-lighter-rgb: 58, 58, 60;
+
+	/* Typography */
+	--font-stack: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica,
+		sans-serif;
+	--chat-font-size: 15px;
+	--text-primary: rgba(255, 255, 255, 0.95);
+	--text-secondary: rgba(235, 235, 245, 0.6);
+	--text-tertiary: rgba(235, 235, 245, 0.3);
+
+	/* Accents */
+	--accent-blue: #0a84ff;
+	--accent-blue-hover: #2e96ff;
+	--accent-rgb: 10, 132, 255;
+	--accent-purple: #bf5af2;
+	--accent-green: #30d158;
+	--accent-orange: #ff9f0a;
+	--accent-pink: #ff375f;
+	--danger: #ff453a;
+
+	/* Metrics */
+	--radius-xl: 18px;
+	--radius-lg: 12px;
+	--radius-md: 8px;
+	--radius-sm: 6px;
+
+	/* Effects */
+	--blur-heavy: blur(40px);
+	--blur-light: blur(20px);
+	--border-subtle: 1px solid rgba(255, 255, 255, 0.08);
+	--shadow-float: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+	outline: none;
+}
+
+body {
+	background: var(--bg-app);
+	color: var(--text-primary);
+	font-family: var(--font-stack);
+	height: 100vh;
+	overflow: hidden;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar aesthetics */
+::-webkit-scrollbar {
+	width: 8px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

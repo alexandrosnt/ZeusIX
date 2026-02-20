@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Rust build output
+target/
+
+# SvelteKit
+.svelte-kit/
+apps/desktop/build/
+
+# Tauri auto-generated
+apps/desktop/src-tauri/gen/schemas/
+
+# Server (private — not part of this repo)
+apps/server/
+infra/
+packages/proto/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Build artifacts / installers
+*.deb
+*.rpm
+*.pkg.tar.zst
+*.msi
+*.exe
+*.dmg
+*.AppImage
+
+# Claude Code
+.claude/
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+.dockerignore
+index.html
+loginreg.html

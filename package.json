@@ -1,0 +1,9 @@
+{
+  "name": "zeusix",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @zeusix/desktop dev",
+    "build": "pnpm --filter @zeusix/desktop build",
+    "tauri": "pnpm --filter @zeusix/desktop tauri"
+  }
+}
