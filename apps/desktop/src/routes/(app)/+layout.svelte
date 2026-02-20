@@ -25,6 +25,7 @@
 	import { settingsStore } from '$lib/stores/settings.svelte';
 	import { dmsStore } from '$lib/stores/dms.svelte';
 	import { callsStore } from '$lib/stores/calls.svelte';
+	import { updaterStore } from '$lib/stores/updater.svelte';
 	import { PERMISSIONS } from '$lib/utils/permissions';
 	import { hasPermission } from '$lib/utils/permissions';
 	import { applyTheme } from '$lib/utils/theme-applier';
@@ -449,6 +450,19 @@
 {#if authStore.isAuthenticated}
 <div class="app-frame">
 	<Titlebar />
+	{#if updaterStore.available}
+		<div class="update-bar">
+			<span>A new version is available — <strong>v{updaterStore.version}</strong></span>
+			<div class="update-actions">
+				{#if updaterStore.downloading}
+					<span class="update-downloading">Downloading...</span>
+				{:else}
+					<button class="update-btn" onclick={() => updaterStore.install()}>Update now</button>
+					<button class="update-dismiss" onclick={() => updaterStore.dismiss()}>Later</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
 	<div id="app-window">
 		<ServerRail
 			onhome={handleServerHome}
@@ -611,6 +625,59 @@
 		color: rgba(255, 255, 255, 0.5);
 		font-size: 1rem;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	}
+
+	.update-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 6px 16px;
+		background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(191, 90, 242, 0.15));
+		border-bottom: 1px solid rgba(10, 132, 255, 0.2);
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.9);
+		flex-shrink: 0;
+	}
+
+	.update-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.update-btn {
+		padding: 3px 12px;
+		border: none;
+		border-radius: 4px;
+		background: var(--accent-blue, #0a84ff);
+		color: white;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.15s;
+	}
+
+	.update-btn:hover {
+		opacity: 0.85;
+	}
+
+	.update-dismiss {
+		padding: 3px 8px;
+		border: none;
+		border-radius: 4px;
+		background: transparent;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.update-dismiss:hover {
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.update-downloading {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.6);
 	}
 
 </style>
