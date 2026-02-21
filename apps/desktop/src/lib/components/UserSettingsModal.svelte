@@ -252,6 +252,25 @@
 								{/each}
 							</div>
 						</div>
+
+						<!-- Minimize to Tray -->
+						<div class="toggle-group">
+							<div class="toggle-info">
+								<span class="toggle-label">Minimize to Tray</span>
+								<span class="toggle-description">Close button minimizes to system tray instead of quitting</span>
+							</div>
+							<button
+								type="button"
+								role="switch"
+								aria-checked={settingsStore.minimizeToTray}
+								aria-label="Toggle minimize to tray"
+								class="toggle"
+								class:active={settingsStore.minimizeToTray}
+								onclick={() => settingsStore.update({ minimizeToTray: !settingsStore.minimizeToTray })}
+							>
+								<span class="toggle-knob"></span>
+							</button>
+						</div>
 					</div>
 
 				{:else if activeTab === 'voice'}

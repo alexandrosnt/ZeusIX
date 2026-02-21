@@ -10,8 +10,47 @@
 	import type { Message, ServerMember } from '$lib/types';
 	import { parseMarkdown, type Segment } from '$lib/utils/markdown';
 	import CodeBlock from '$lib/components/CodeBlock.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
+	import { deleteMessage, deleteDmMessage, purgeMessages } from '$lib/services/api';
+
+	interface Props {
+		dmChannelId?: string;
+	}
+
+	let { dmChannelId }: Props = $props();
 
 	let wrapper: HTMLDivElement | undefined = $state();
+
+	// Context menu state
+	let ctxMenu = $state<{ x: number; y: number; messageId: string; channelId: string } | null>(null);
+
+	function handleMessageContext(e: MouseEvent, messageId: string, channelId: string) {
+		e.preventDefault();
+		ctxMenu = { x: e.clientX, y: e.clientY, messageId, channelId };
+	}
+
+	async function handleDeleteMsg(channelId: string, messageId: string) {
+		try {
+			if (dmChannelId) {
+				await deleteDmMessage(dmChannelId, messageId);
+			} else {
+				await deleteMessage(channelId, messageId);
+			}
+			messagesStore.deleteMessage(channelId, messageId);
+		} catch (err) {
+			console.error('[MessageList] Failed to delete message:', err);
+		}
+	}
+
+	async function handlePurgeChat() {
+		if (!dmChannelId) return;
+		try {
+			await purgeMessages(dmChannelId);
+			messagesStore.clearChannel(dmChannelId);
+		} catch (err) {
+			console.error('[MessageList] Failed to purge messages:', err);
+		}
+	}
 
 	let messages = $derived(messagesStore.currentMessages);
 	let activeChannel = $derived(channelsStore.activeChannel);
@@ -195,7 +234,7 @@
 			{@const roleColor = membersStore.getTopRoleColor(message.author_id)}
 			{@const nameColor = roleColor ?? fallbackColor}
 			{@const avatarUrl = message.author?.avatar_url}
-			<div class="message" class:compact={settingsStore.compactMode}>
+			<div class="message" class:compact={settingsStore.compactMode} oncontextmenu={(e) => handleMessageContext(e, message.id, message.channel_id)}>
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div class="msg-avatar clickable" style:background-color={fallbackColor} onclick={(e) => handleAuthorClick(message.author_id, e)} role="button" tabindex="0">
 					{#if avatarUrl}
@@ -267,6 +306,18 @@
 			{/if}
 		</div>
 	</div>
+{/if}
+
+{#if ctxMenu}
+	<ContextMenu
+		x={ctxMenu.x}
+		y={ctxMenu.y}
+		items={[
+			{ label: 'Delete Message', danger: true, action: () => handleDeleteMsg(ctxMenu!.channelId, ctxMenu!.messageId) },
+			...(dmChannelId ? [{ label: 'Cleanup Chat', danger: true, divider: true, action: () => handlePurgeChat() }] : [])
+		]}
+		onclose={() => ctxMenu = null}
+	/>
 {/if}
 
 <style>

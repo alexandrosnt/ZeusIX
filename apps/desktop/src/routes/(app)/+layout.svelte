@@ -26,6 +26,9 @@
 	import { dmsStore } from '$lib/stores/dms.svelte';
 	import { callsStore } from '$lib/stores/calls.svelte';
 	import { updaterStore } from '$lib/stores/updater.svelte';
+	import { voiceStore } from '$lib/stores/voice.svelte';
+	import { invoke } from '@tauri-apps/api/core';
+	import { listen } from '@tauri-apps/api/event';
 	import { PERMISSIONS } from '$lib/utils/permissions';
 	import { hasPermission } from '$lib/utils/permissions';
 	import { applyTheme } from '$lib/utils/theme-applier';
@@ -210,6 +213,35 @@
 		return () => {
 			gateway.disconnect();
 		};
+	});
+
+	// --- Tray: sync minimize-to-tray setting to Rust ---
+	$effect(() => {
+		invoke('set_minimize_to_tray', { enabled: settingsStore.minimizeToTray });
+	});
+
+	// --- Tray: update icon based on call/speaking state ---
+	$effect(() => {
+		const inCall = voiceStore.isInVoice || callsStore.activeCall !== null;
+		if (!inCall) {
+			invoke('update_tray_icon', { state: 'idle' });
+			return;
+		}
+		const me = authStore.user;
+		const myParticipant = me
+			? voiceStore.participants.find(p => p.userId === me.id)
+			: null;
+		const speaking = myParticipant?.speaking ?? false;
+		invoke('update_tray_icon', { state: speaking ? 'speaking' : 'in_call' });
+	});
+
+	// --- Tray: listen for "Check for Updates" from right-click menu ---
+	$effect(() => {
+		let unlisten = () => {};
+		listen('tray-check-updates', () => {
+			updaterStore.forceUpdate();
+		}).then(fn => unlisten = fn);
+		return () => unlisten();
 	});
 
 	// --- Handlers ---

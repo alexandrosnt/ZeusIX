@@ -92,6 +92,9 @@
 	});
 </script>
 
+<!-- Disable browser right-click globally -->
+<svelte:window oncontextmenu={(e) => e.preventDefault()} />
+
 <!-- SVG Filters -->
 <svg class="filters" xmlns="http://www.w3.org/2000/svg">
 	<defs>

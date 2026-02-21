@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { Users, UserPlus, Check, X, Search, Clock, MessageCircle } from 'lucide-svelte';
-	import { searchUsers, listFriends, sendFriendRequest, acceptFriend, declineFriend, removeFriend, createDm } from '$lib/services/api';
+	import { searchUsers, listFriends, sendFriendRequest, acceptFriend, declineFriend, removeFriend, createDm, blockUser, ignoreUser } from '$lib/services/api';
 	import { dmsStore } from '$lib/stores/dms.svelte';
 	import { friendsStore } from '$lib/stores/friends.svelte';
 	import { presenceStore } from '$lib/stores/presence.svelte';
+	import { unreadStore } from '$lib/stores/unread.svelte';
 	import { goto } from '$app/navigation';
+	import ContextMenu from './ContextMenu.svelte';
 	import type { User, Friendship } from '$lib/types';
 
 	type Tab = 'all' | 'online' | 'pending' | 'add';
@@ -233,6 +235,52 @@
 			handleSendRequest();
 		}
 	}
+
+	// Context menu for friend items
+	let ctxMenu: { x: number; y: number; friendship: Friendship } | null = $state(null);
+
+	function handleFriendContextMenu(e: MouseEvent, friendship: Friendship) {
+		e.preventDefault();
+		e.stopPropagation();
+		// Only for accepted friends, not pending
+		if (friendship.status !== 'accepted') return;
+		ctxMenu = { x: e.clientX, y: e.clientY, friendship };
+	}
+
+	function getFriendContextItems(friendship: Friendship) {
+		return [
+			{
+				label: 'Block',
+				danger: true,
+				action: async () => {
+					try {
+						await blockUser(friendship.user_id);
+						friendsStore.remove(friendship.id);
+					} catch { /* silent */ }
+				}
+			},
+			{
+				label: 'Remove Friend',
+				danger: true,
+				divider: true,
+				action: async () => {
+					try {
+						await removeFriend(friendship.id);
+						friendsStore.remove(friendship.id);
+					} catch { /* silent */ }
+				}
+			},
+			{
+				label: 'Ignore',
+				action: async () => {
+					try {
+						await ignoreUser(friendship.user_id);
+						unreadStore.ignoreUser(friendship.user_id);
+					} catch { /* silent */ }
+				}
+			}
+		];
+	}
 </script>
 
 <div class="friends-page">
@@ -402,6 +450,7 @@
 						role="listitem"
 						onmouseenter={() => (hoveredFriendId = friendship.id)}
 						onmouseleave={() => (hoveredFriendId = null)}
+						oncontextmenu={(e) => handleFriendContextMenu(e, friendship)}
 					>
 						<div class="avatar" style:background={getAvatarGradient(friendship.username)}>
 							{#if friendship.avatar_url}
@@ -488,6 +537,15 @@
 		{/if}
 	</div>
 </div>
+
+{#if ctxMenu}
+	<ContextMenu
+		x={ctxMenu.x}
+		y={ctxMenu.y}
+		items={getFriendContextItems(ctxMenu.friendship)}
+		onclose={() => { ctxMenu = null; }}
+	/>
+{/if}
 
 <style>
 	.friends-page {

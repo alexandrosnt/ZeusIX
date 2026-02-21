@@ -17,10 +17,16 @@ class DmsStore {
 
 	setChannels(channels: DmChannel[]) {
 		this.byId.clear();
-		for (const c of channels) {
+		// Sort by most recently active first
+		const sorted = [...channels].sort((a, b) => {
+			const ta = a.updated_at || a.created_at || '';
+			const tb = b.updated_at || b.created_at || '';
+			return tb.localeCompare(ta);
+		});
+		for (const c of sorted) {
 			this.byId.set(c.id, c);
 		}
-		this.order = channels.map((c) => c.id);
+		this.order = sorted.map((c) => c.id);
 	}
 
 	addOrUpdateChannel(channel: DmChannel) {

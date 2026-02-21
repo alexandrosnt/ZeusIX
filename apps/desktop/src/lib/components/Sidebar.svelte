@@ -4,6 +4,7 @@
 	import ServerDropdownMenu from './ServerDropdownMenu.svelte';
 	import UserPanel from './UserPanel.svelte';
 	import VoiceConnectionPanel from './VoiceConnectionPanel.svelte';
+	import ContextMenu from './ContextMenu.svelte';
 	import { serversStore } from '$lib/stores/servers.svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
@@ -11,7 +12,9 @@
 	import { callsStore } from '$lib/stores/calls.svelte';
 	import { dmsStore } from '$lib/stores/dms.svelte';
 	import { presenceStore } from '$lib/stores/presence.svelte';
-	import { closeDm } from '$lib/services/api';
+	import { friendsStore } from '$lib/stores/friends.svelte';
+	import { unreadStore } from '$lib/stores/unread.svelte';
+	import { closeDm, blockUser, removeFriend, ignoreUser } from '$lib/services/api';
 	import { goto } from '$app/navigation';
 
 	interface Props {
@@ -113,6 +116,7 @@
 		channelsStore.setChannels([]);
 		channelsStore.setActive(null);
 		dmsStore.setActive(dm.id);
+		unreadStore.clear(dm.id);
 		await goto(`/dms/${dm.id}`);
 	}
 
@@ -127,6 +131,60 @@
 		} catch {
 			// Silently handle - could show toast later
 		}
+	}
+
+	// Context menu state for DM items
+	let ctxMenu: { x: number; y: number; dm: typeof dmChannels[number] } | null = $state(null);
+
+	function handleDmContextMenu(e: MouseEvent, dm: typeof dmChannels[number]) {
+		e.preventDefault();
+		e.stopPropagation();
+		// Only show for 1-on-1 DMs (not group DMs)
+		if (dm.dm_type === 'group') return;
+		ctxMenu = { x: e.clientX, y: e.clientY, dm };
+	}
+
+	function getDmContextItems(dm: typeof dmChannels[number]) {
+		return [
+			{
+				label: 'Block',
+				danger: true,
+				action: async () => {
+					if (!dm.recipient_id) return;
+					try {
+						await blockUser(dm.recipient_id);
+						await closeDm(dm.id);
+						dmsStore.removeChannel(dm.id);
+						if (activeDmId === dm.id) await goto('/');
+					} catch { /* silent */ }
+				}
+			},
+			{
+				label: 'Remove Friend',
+				danger: true,
+				divider: true,
+				action: async () => {
+					if (!dm.recipient_id) return;
+					// Find friendship by user_id
+					const friendship = friendsStore.friends.find(f => f.user_id === dm.recipient_id);
+					if (!friendship) return;
+					try {
+						await removeFriend(friendship.id);
+						friendsStore.remove(friendship.id);
+					} catch { /* silent */ }
+				}
+			},
+			{
+				label: 'Ignore',
+				action: async () => {
+					if (!dm.recipient_id) return;
+					try {
+						await ignoreUser(dm.recipient_id);
+						unreadStore.ignoreUser(dm.recipient_id);
+					} catch { /* silent */ }
+				}
+			}
+		];
 	}
 </script>
 
@@ -157,15 +215,21 @@
 					{#each dmChannels as dm (dm.id)}
 						{@const displayName = getDmDisplayName(dm)}
 						{@const status = getRecipientStatus(dm)}
+						{@const unread = unreadStore.getCount(dm.id)}
 						<div
 							class="dm-item"
 							class:active={activeDmId === dm.id}
+							class:unread={unread > 0}
 							onclick={() => handleDmClick(dm)}
+							oncontextmenu={(e) => handleDmContextMenu(e, dm)}
 							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDmClick(dm); }}
 							role="button"
 							tabindex="0"
 							aria-label="Open conversation with {displayName}"
 						>
+							{#if unread > 0}
+								<div class="unread-pip"></div>
+							{/if}
 							{#if dm.dm_type === 'group'}
 								<div class="dm-avatar dm-group-avatars" style:background={getAvatarGradient(displayName)}>
 									{#if dm.icon_url}
@@ -188,13 +252,17 @@
 								<span class="dm-name">{displayName}</span>
 								<span class="dm-meta">{getDmMeta(dm)}</span>
 							</div>
-							<button
-								class="dm-close-btn"
-								aria-label="Close DM with {displayName}"
-								onclick={(e) => handleCloseDm(e, dm.id)}
-							>
-								<X size={14} />
-							</button>
+							{#if unread > 0}
+								<span class="unread-badge">{unread > 99 ? '99+' : unread}</span>
+							{:else}
+								<button
+									class="dm-close-btn"
+									aria-label="Close DM with {displayName}"
+									onclick={(e) => handleCloseDm(e, dm.id)}
+								>
+									<X size={14} />
+								</button>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -242,6 +310,15 @@
 
 	<UserPanel />
 </aside>
+
+{#if ctxMenu}
+	<ContextMenu
+		x={ctxMenu.x}
+		y={ctxMenu.y}
+		items={getDmContextItems(ctxMenu.dm)}
+		onclose={() => { ctxMenu = null; }}
+	/>
+{/if}
 
 <style>
 	.sidebar {
@@ -506,5 +583,37 @@
 	/* Group DM avatars */
 	.dm-group-avatars {
 		border-radius: 8px;
+	}
+
+	/* Unread indicators */
+	.dm-item.unread .dm-name {
+		font-weight: 700;
+		color: rgba(255, 255, 255, 1);
+	}
+
+	.unread-pip {
+		position: absolute;
+		left: -4px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 4px;
+		height: 8px;
+		border-radius: 0 4px 4px 0;
+		background: #fff;
+	}
+
+	.unread-badge {
+		flex-shrink: 0;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 9px;
+		background: #FF453A;
+		color: #fff;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 18px;
+		text-align: center;
+		box-sizing: border-box;
 	}
 </style>

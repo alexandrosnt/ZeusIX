@@ -8,8 +8,10 @@
 	import { messagesStore } from '$lib/stores/messages.svelte';
 	import { callsStore } from '$lib/stores/calls.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { getDmMessages, sendDmMessage, startCall, leaveCall, joinCall, getActiveCall, getDm } from '$lib/services/api';
+	import { getDmMessages, sendDmMessage, startCall, leaveCall, joinCall, getActiveCall, getDm, deleteDmMessage, purgeMessages } from '$lib/services/api';
 	import { gateway } from '$lib/services/gateway';
+	import { sounds } from '$lib/services/sounds';
+	import { unreadStore } from '$lib/stores/unread.svelte';
 	const lk = () => import('$lib/services/livekit').then(m => m.livekit);
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import type { DmChannel } from '$lib/types';
@@ -226,6 +228,7 @@
 		try {
 			const call = await startCall(dmChannelId);
 			callsStore.setActiveCall(call);
+			sounds.outgoingCall();
 		} catch (err: any) {
 			console.error('[DmChat] Failed to start video call:', err);
 			callError = err?.message || 'Failed to start call';
@@ -302,6 +305,7 @@
 	$effect(() => {
 		const id = dmChannelId;
 		if (!id) return;
+		unreadStore.clear(id);
 		loadDmChannel(id);
 		loadMessages(id);
 	});
@@ -359,6 +363,7 @@
 		try {
 			const call = await startCall(dmChannelId);
 			callsStore.setActiveCall(call);
+			sounds.outgoingCall();
 			// Add self to participants immediately
 			const me = authStore.user;
 			if (me) callsStore.addParticipant({ user_id: me.id, username: me.username });
@@ -668,7 +673,7 @@
 				<button class="retry-btn" onclick={() => loadMessages(dmChannelId)}>Retry</button>
 			</div>
 		{:else}
-			<MessageList />
+			<MessageList {dmChannelId} />
 		{/if}
 
 		<div class="dm-input-wrapper">

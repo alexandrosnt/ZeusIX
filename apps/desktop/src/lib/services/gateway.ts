@@ -7,6 +7,9 @@ import { callsStore } from '$lib/stores/calls.svelte';
 import { friendsStore } from '$lib/stores/friends.svelte';
 import { membersStore } from '$lib/stores/members.svelte';
 import { serversStore } from '$lib/stores/servers.svelte';
+import { sounds } from '$lib/services/sounds';
+import { notifications } from '$lib/services/notifications';
+import { unreadStore } from '$lib/stores/unread.svelte';
 // livekit-client is lazy-loaded to avoid pulling ~50MB into baseline memory
 const getLiveKit = () => import('$lib/services/livekit').then(m => m.livekit);
 import type { GatewayEvent, Message, PresenceStatus, DmChannel, Call, Friendship } from '$lib/types';
@@ -184,9 +187,14 @@ class GatewayClient {
 	/** Decode a raw gateway message (with encrypted_content byte array) into a frontend Message */
 	private decodeRawMessage(raw: Record<string, unknown>): Message {
 		const encrypted = raw.encrypted_content as number[] | undefined;
-		const content = encrypted
-			? new TextDecoder().decode(new Uint8Array(encrypted))
-			: '';
+		let content = '';
+		if (encrypted && encrypted.length > 0) {
+			try {
+				content = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(encrypted));
+			} catch {
+				content = '\u26A0 Message could not be displayed';
+			}
+		}
 		const authorId = raw.author_id as string;
 		const authorUsername = raw.author_username as string | undefined;
 		const authorAvatarUrl = (raw.author_avatar_url as string | null) ?? null;
@@ -220,6 +228,22 @@ class GatewayClient {
 				messagesStore.addMessage(msg.channel_id, msg);
 				// Bump DM to top if this is a DM message
 				dmsStore.bumpToTop(msg.channel_id);
+				// Notifications for messages from others
+				if (msg.author_id !== authStore.user?.id) {
+					const ignored = unreadStore.isIgnored(msg.author_id);
+					// Track unread if not viewing this channel
+					const isViewing = dmsStore.activeChannelId === msg.channel_id;
+					if (!isViewing) {
+						unreadStore.increment(msg.channel_id);
+					}
+					// Sound + push only for non-ignored users
+					if (!ignored) {
+						sounds.message();
+						const authorName = msg.author_username ?? 'Someone';
+						const content = msg.content || 'Sent a message';
+						notifications.message(authorName, content);
+					}
+				}
 				break;
 			}
 			case EVENTS.MESSAGE_UPDATE: {
@@ -317,7 +341,12 @@ class GatewayClient {
 				// Track this call so other views know it exists in real-time
 				callsStore.setKnownCall(call.dm_channel_id, call);
 				if (myId && call.initiator_id !== myId) {
+					const ignored = unreadStore.isIgnored(call.initiator_id);
 					callsStore.setIncomingCall(call);
+					if (!ignored) {
+						sounds.ringtone();
+						notifications.incomingCall(call.initiator_username);
+					}
 				}
 				break;
 			}
@@ -325,6 +354,7 @@ class GatewayClient {
 				const call = event.d as Call;
 				callsStore.setKnownCall(call.dm_channel_id, call);
 				if (call.status === 'active') {
+					sounds.stopLoop();
 					// Only set activeCall if we're already part of it
 					if (callsStore.activeCall?.dm_channel_id === call.dm_channel_id) {
 						callsStore.setActiveCall(call);
@@ -335,6 +365,7 @@ class GatewayClient {
 			}
 			case EVENTS.CALL_DELETE: {
 				const deleted = event.d as { id: string; dm_channel_id: string; status: string };
+				sounds.stopLoop();
 				callsStore.removeKnownCall(deleted.dm_channel_id);
 				// Only leave LiveKit if we're currently in this call
 				if (callsStore.activeCall?.dm_channel_id === deleted.dm_channel_id) {
@@ -356,6 +387,10 @@ class GatewayClient {
 			case EVENTS.FRIEND_REQUEST_CREATE: {
 				const friend = event.d as Friendship;
 				friendsStore.addOrUpdate(friend);
+				if (friend.direction === 'incoming') {
+					sounds.friendRequest();
+					notifications.friendRequest(friend.username);
+				}
 				break;
 			}
 			case EVENTS.FRIEND_REQUEST_ACCEPT: {

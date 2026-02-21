@@ -24,6 +24,7 @@ export interface UserSettings {
 	autoDeleteMessages: AutoDelete;
 	blockInvites: boolean;
 	hideTypingIndicator: boolean;
+	minimizeToTray: boolean;
 }
 
 const DEFAULTS: UserSettings = {
@@ -44,7 +45,8 @@ const DEFAULTS: UserSettings = {
 	allowDmFromServerMembers: true,
 	autoDeleteMessages: 'never',
 	blockInvites: false,
-	hideTypingIndicator: false
+	hideTypingIndicator: false,
+	minimizeToTray: true
 };
 
 class SettingsStore {
@@ -66,6 +68,7 @@ class SettingsStore {
 	autoDeleteMessages = $state<AutoDelete>('never');
 	blockInvites = $state(false);
 	hideTypingIndicator = $state(false);
+	minimizeToTray = $state(true);
 
 	constructor() {
 		this.restoreSettings();
@@ -102,7 +105,8 @@ class SettingsStore {
 			allowDmFromServerMembers: this.allowDmFromServerMembers,
 			autoDeleteMessages: this.autoDeleteMessages,
 			blockInvites: this.blockInvites,
-			hideTypingIndicator: this.hideTypingIndicator
+			hideTypingIndicator: this.hideTypingIndicator,
+			minimizeToTray: this.minimizeToTray
 		};
 	}
 

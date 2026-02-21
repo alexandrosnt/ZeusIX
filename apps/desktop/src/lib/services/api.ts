@@ -117,7 +117,12 @@ export async function createChannel(
 
 /** Decode a byte array (from server) to a UTF-8 string */
 function decodeContent(bytes: number[]): string {
-	return new TextDecoder().decode(new Uint8Array(bytes));
+	try {
+		if (!bytes || bytes.length === 0) return '';
+		return new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes));
+	} catch {
+		return '\u26A0 Message could not be displayed';
+	}
 }
 
 /** Map a raw server MessageResponse to frontend Message */
@@ -260,6 +265,30 @@ export async function declineFriend(friendshipId: string) {
 
 export async function removeFriend(friendshipId: string) {
 	return request<{ removed: boolean }>(`/friends/${friendshipId}`, { method: 'DELETE' });
+}
+
+export async function blockUser(userId: string) {
+	return request<{ blocked: boolean }>(`/users/${userId}/block`, { method: 'POST' });
+}
+
+export async function unblockUser(userId: string) {
+	return request<{ unblocked: boolean }>(`/users/${userId}/block`, { method: 'DELETE' });
+}
+
+export async function ignoreUser(userId: string) {
+	return request<{ ignored: boolean }>(`/users/${userId}/ignore`, { method: 'POST' });
+}
+
+export async function deleteMessage(channelId: string, messageId: string) {
+	return request<{ deleted: boolean }>(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' });
+}
+
+export async function deleteDmMessage(dmId: string, messageId: string) {
+	return request<{ deleted: boolean }>(`/dms/${dmId}/messages/${messageId}`, { method: 'DELETE' });
+}
+
+export async function purgeMessages(dmId: string) {
+	return request<{ purged: boolean }>(`/dms/${dmId}/messages/purge`, { method: 'POST' });
 }
 
 // Members
