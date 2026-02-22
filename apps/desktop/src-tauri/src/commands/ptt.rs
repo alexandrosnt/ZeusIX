@@ -9,7 +9,10 @@ use tauri::{AppHandle, Emitter};
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// Store the target keycode so the polling thread knows what to watch.
-static TARGET_KEY: Mutex<Option<Keycode>> = Mutex::new(None);
+static PTT_KEY: Mutex<Option<Keycode>> = Mutex::new(None);
+
+/// Store the whisper keycode for dual-key polling.
+static WHISPER_KEY: Mutex<Option<Keycode>> = Mutex::new(None);
 
 /// Map a JavaScript KeyboardEvent.code string to a device_query Keycode.
 fn map_js_key(code: &str) -> Option<Keycode> {
@@ -97,10 +100,10 @@ fn map_js_key(code: &str) -> Option<Keycode> {
     }
 }
 
-/// Start a background thread that polls the keyboard for the PTT key.
-/// Emits "ptt-press" and "ptt-release" events to the frontend.
+/// Start a background thread that polls the keyboard for PTT and whisper keys.
+/// Emits "ptt-press"/"ptt-release" and "whisper-press"/"whisper-release" events.
 #[tauri::command]
-pub fn start_ptt_listener(app: AppHandle, key_code: String) {
+pub fn start_ptt_listener(app: AppHandle, key_code: String, whisper_key_code: Option<String>) {
     // Stop any existing listener first
     RUNNING.store(false, Ordering::SeqCst);
     // Brief sleep to let old thread notice and exit
@@ -114,32 +117,67 @@ pub fn start_ptt_listener(app: AppHandle, key_code: String) {
         }
     };
 
-    *TARGET_KEY.lock().unwrap() = Some(target);
+    *PTT_KEY.lock().unwrap() = Some(target);
+
+    // Set whisper key if provided
+    if let Some(ref wk) = whisper_key_code {
+        if let Some(mapped) = map_js_key(wk) {
+            *WHISPER_KEY.lock().unwrap() = Some(mapped);
+            println!("[PTT] Whisper key set to {:?} (from {})", mapped, wk);
+        }
+    }
+
     RUNNING.store(true, Ordering::SeqCst);
 
     println!("[PTT] Starting listener for {:?} (from {})", target, key_code);
 
     thread::spawn(move || {
         let device_state = DeviceState::new();
-        let mut was_pressed = false;
+        let mut ptt_was_pressed = false;
+        let mut whisper_was_pressed = false;
 
         while RUNNING.load(Ordering::SeqCst) {
             let keys = device_state.get_keys();
-            let target = TARGET_KEY.lock().unwrap().unwrap_or(Keycode::V);
-            let is_pressed = keys.contains(&target);
 
-            if is_pressed && !was_pressed {
+            // Normal PTT key
+            let ptt_target = PTT_KEY.lock().unwrap().unwrap_or(Keycode::V);
+            let ptt_pressed = keys.contains(&ptt_target);
+
+            if ptt_pressed && !ptt_was_pressed {
                 let _ = app.emit("ptt-press", ());
-            } else if !is_pressed && was_pressed {
+            } else if !ptt_pressed && ptt_was_pressed {
                 let _ = app.emit("ptt-release", ());
             }
+            ptt_was_pressed = ptt_pressed;
 
-            was_pressed = is_pressed;
+            // Whisper PTT key
+            let whisper_target = *WHISPER_KEY.lock().unwrap();
+            if let Some(wk) = whisper_target {
+                let whisper_pressed = keys.contains(&wk);
+                if whisper_pressed && !whisper_was_pressed {
+                    let _ = app.emit("whisper-press", ());
+                } else if !whisper_pressed && whisper_was_pressed {
+                    let _ = app.emit("whisper-release", ());
+                }
+                whisper_was_pressed = whisper_pressed;
+            }
+
             thread::sleep(Duration::from_millis(20)); // 50Hz polling
         }
 
         println!("[PTT] Listener stopped");
     });
+}
+
+/// Hot-swap the whisper key without restarting the listener.
+#[tauri::command]
+pub fn set_whisper_key(key_code: String) {
+    if let Some(mapped) = map_js_key(&key_code) {
+        *WHISPER_KEY.lock().unwrap() = Some(mapped);
+        println!("[PTT] Whisper key updated to {:?} (from {})", mapped, key_code);
+    } else {
+        eprintln!("[PTT] Cannot map whisper key code: {}", key_code);
+    }
 }
 
 /// Stop the PTT listener thread.

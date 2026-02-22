@@ -15,6 +15,7 @@
 	type Tab = 'appearance' | 'voice' | 'text' | 'privacy';
 	let activeTab: Tab = $state('appearance');
 	let listeningForKey = $state(false);
+	let listeningForWhisperKey = $state(false);
 	let mediaDevices = $state<MediaDeviceInfo[]>([]);
 
 	// --- Derived ---
@@ -141,6 +142,17 @@
 			}
 			settingsStore.update({ pttKeybind: e.code });
 			listeningForKey = false;
+			return;
+		}
+		if (listeningForWhisperKey) {
+			e.preventDefault();
+			e.stopPropagation();
+			if (e.code === 'Escape') {
+				listeningForWhisperKey = false;
+				return;
+			}
+			settingsStore.update({ whisperKeybind: e.code });
+			listeningForWhisperKey = false;
 			return;
 		}
 		if (e.key === 'Escape') onclose();
@@ -339,6 +351,23 @@
 								</button>
 							</div>
 						{/if}
+
+						<!-- Whisper Broadcast Key (always visible) -->
+						<div class="field-group">
+							<span class="field-label">Whisper Broadcast Key</span>
+							<span class="field-desc">Hold to broadcast to whisper targets</span>
+							<button
+								class="keybind-btn"
+								class:listening={listeningForWhisperKey}
+								onclick={() => (listeningForWhisperKey = true)}
+							>
+								{#if listeningForWhisperKey}
+									Press a key...
+								{:else}
+									{codeToLabel(settingsStore.whisperKeybind)}
+								{/if}
+							</button>
+						</div>
 
 						<!-- Input Device -->
 						<div class="select-group">
@@ -808,6 +837,14 @@
 		color: rgba(255, 255, 255, 0.6);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+		margin-bottom: 10px;
+	}
+
+	.field-desc {
+		display: block;
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.35);
+		margin-top: -6px;
 		margin-bottom: 10px;
 	}
 

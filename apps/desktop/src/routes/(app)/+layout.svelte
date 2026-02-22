@@ -16,6 +16,7 @@
 	import FriendsPage from '$lib/components/FriendsPage.svelte';
 	import IncomingCallModal from '$lib/components/IncomingCallModal.svelte';
 	import CreateGroupDmModal from '$lib/components/CreateGroupDmModal.svelte';
+	import WhisperConfigModal from '$lib/components/WhisperConfigModal.svelte';
 
 	import { serversStore } from '$lib/stores/servers.svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
@@ -31,11 +32,13 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { PERMISSIONS } from '$lib/utils/permissions';
 	import { hasPermission } from '$lib/utils/permissions';
+	import { voiceChannelStore } from '$lib/stores/voiceChannels.svelte';
+	import { sounds } from '$lib/services/sounds';
 	import { applyTheme } from '$lib/utils/theme-applier';
 
 	import {
-		getServers, getChannels, getMessages, getMembers, getMe,
-		createServer, deleteServer as apiDeleteServer,
+		getServers, getChannels, getMessages, getMembers, getMe, getVoiceStates,
+		createServer, deleteServer as apiDeleteServer, leaveServer,
 		createChannel as apiCreateChannel, deleteChannel as apiDeleteChannel,
 		updateServer as apiUpdateServer,
 		createRole as apiCreateRole, updateRole as apiUpdateRole, deleteRole as apiDeleteRole,
@@ -57,6 +60,7 @@
 	let showCreateChannel = $state(false);
 	let showInviteModal = $state(false);
 	let showCreateGroupDm = $state(false);
+	let showWhisperConfig = $state(false);
 	let createChannelCategory = $state<string | undefined>(undefined);
 	let members = $state<ServerMember[]>([]);
 	let loading = $state(true);
@@ -174,6 +178,14 @@
 
 			// Fetch members (enriched with user details from backend JOIN)
 			members = await getMembers(serverId);
+
+			// Fetch who's currently in voice channels
+			try {
+				const states = await getVoiceStates(serverId);
+				voiceChannelStore.setStates(states);
+			} catch {
+				voiceChannelStore.clear();
+			}
 		} catch (err) {
 			console.error('[App] Failed to load server data:', err);
 		}
@@ -250,6 +262,7 @@
 		channelsStore.setChannels([]);
 		channelsStore.setActive(null);
 		dmsStore.setActive(null);
+		voiceChannelStore.clear();
 		members = [];
 		// Navigate to home route to unmount any stale DM/server page
 		await goto('/');
@@ -296,16 +309,26 @@
 		showDeleteConfirm = false;
 	}
 
+	async function handleLeaveServer() {
+		const serverId = serversStore.activeServerId;
+		if (!serverId) return;
+		await leaveServer(serverId);
+		serversStore.removeServer(serverId);
+		channelsStore.setChannels([]);
+		channelsStore.setActive(null);
+		members = [];
+	}
+
 	function handleInvite() {
 		if (!serversStore.activeServerId) return;
 		showInviteModal = true;
 	}
 
 	// --- Channel management handlers ---
-	async function handleCreateChannel(name: string, type: 'text' | 'voice' | 'category', categoryId?: string) {
+	async function handleCreateChannel(name: string, type: 'text' | 'voice' | 'category', categoryId?: string, userLimit?: number) {
 		const serverId = serversStore.activeServerId;
 		if (!serverId) return;
-		const channel = await apiCreateChannel(serverId, name, type, categoryId);
+		const channel = await apiCreateChannel(serverId, name, type, categoryId, userLimit);
 		channelsStore.addChannel(channel);
 		// Auto-select newly created text channels
 		if (type === 'text') {
@@ -325,7 +348,7 @@
 	}
 
 	// --- Server settings handlers ---
-	async function handleUpdateServer(data: { name?: string; is_public?: boolean }) {
+	async function handleUpdateServer(data: { name?: string; icon_url?: string; is_public?: boolean }) {
 		const serverId = serversStore.activeServerId;
 		if (!serverId) return;
 		const updated = await apiUpdateServer(serverId, data);
@@ -455,6 +478,7 @@
 	}
 
 	async function handleEndCall() {
+		sounds.stopLoop();
 		const call = callsStore.activeCall;
 		if (call) {
 			try {
@@ -468,6 +492,7 @@
 	}
 
 	async function handleDeclineCall() {
+		sounds.stopLoop();
 		const call = callsStore.incomingCall;
 		if (!call) return;
 		try {
@@ -506,7 +531,8 @@
 			onaddfriend={handleAddFriend}
 			oninvite={handleInvite}
 			onsettings={canManageServer ? () => showServerSettings = true : undefined}
-			ondelete={isOwner ? () => showDeleteConfirm = true : undefined}
+			ondelete={isOwner && serversStore.activeServer?.member_count === 1 ? () => showDeleteConfirm = true : undefined}
+			onleave={!isOwner ? handleLeaveServer : undefined}
 			oncreatechannel={canManageChannels ? (categoryId) => { createChannelCategory = categoryId; showCreateChannel = true; } : undefined}
 			candeletechannel={canManageChannels}
 			onchanneldelete={handleDeleteChannel}
@@ -514,6 +540,7 @@
 			onvoicedisconnect={handleVoiceDisconnect}
 			oncalldisconnect={handleEndCall}
 			oncreategroupdm={() => showCreateGroupDm = true}
+			onwhisperconfig={canManageServer ? () => { showWhisperConfig = true; } : undefined}
 		/>
 		<main class="main-content">
 			{#if loading}
@@ -588,6 +615,13 @@
 {#if showCreateGroupDm}
 	<CreateGroupDmModal
 		onclose={() => showCreateGroupDm = false}
+	/>
+{/if}
+
+{#if showWhisperConfig && serversStore.activeServerId}
+	<WhisperConfigModal
+		serverId={serversStore.activeServerId}
+		onclose={() => showWhisperConfig = false}
 	/>
 {/if}
 

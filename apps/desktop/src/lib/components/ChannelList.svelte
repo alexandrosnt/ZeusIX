@@ -1,11 +1,14 @@
 <script lang="ts">
-	import { ChevronDown, Hash, Volume2, Plus, Trash2, MicOff, HeadphoneOff } from 'lucide-svelte';
+	import { ChevronDown, Hash, Volume2, Plus, Trash2, MicOff, HeadphoneOff, Megaphone } from 'lucide-svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
 	import { voiceStore } from '$lib/stores/voice.svelte';
+	import { voiceChannelStore } from '$lib/stores/voiceChannels.svelte';
 	import { membersStore } from '$lib/stores/members.svelte';
 	import { presenceStore } from '$lib/stores/presence.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { dmsStore } from '$lib/stores/dms.svelte';
+	import { whisperStore } from '$lib/stores/whisper.svelte';
+	import { serversStore } from '$lib/stores/servers.svelte';
 	import AnimatedAvatar from './AnimatedAvatar.svelte';
 	import type { Channel, Category } from '$lib/types';
 
@@ -166,6 +169,15 @@
 								</span>
 							{/if}
 							<span class="channel-name">{channel.name}</span>
+							{#if channel.channel_type === 'voice' && serversStore.activeServerId && whisperStore.isTarget(serversStore.activeServerId, channel.id)}
+								<span class="whisper-target-icon"><Megaphone size={12} /></span>
+							{/if}
+							{#if channel.channel_type === 'voice' && channel.user_limit}
+								{@const count = voiceChannelStore.getCount(channel.id)}
+								<span class="voice-limit" class:full={count >= channel.user_limit}>
+									{count}/{channel.user_limit}
+								</span>
+							{/if}
 						</button>
 						{#if candeletechannel && hoveredChannel === channel.id}
 							<button
@@ -178,13 +190,17 @@
 						{/if}
 					</div>
 
-					{#if channel.channel_type === 'voice' && voiceStore.channelId === channel.id}
-						{#each voiceStore.participants as participant (participant.userId)}
+					{#if channel.channel_type === 'voice'}
+						{@const channelParticipants = voiceChannelStore.getParticipants(channel.id)}
+						{@const isMyChannel = voiceStore.channelId === channel.id}
+						{#each channelParticipants as participant (participant.userId)}
 							{@const nameColor = getMemberNameColor(participant.userId)}
+							{@const rtcParticipant = isMyChannel ? voiceStore.participants.find(p => p.userId === participant.userId) : null}
+							{@const speaking = rtcParticipant?.speaking ?? false}
 							<button class="voice-participant" onclick={(e) => handleParticipantClick(participant.userId, e)}>
 								<AnimatedAvatar
 									url={getMemberAvatar(participant.userId)}
-									speaking={participant.speaking}
+									{speaking}
 									size={24}
 									username={participant.username}
 								/>
@@ -436,6 +452,25 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		min-width: 0;
+	}
+
+	.whisper-target-icon {
+		display: flex;
+		align-items: center;
+		color: var(--accent-blue, #0a84ff);
+		opacity: 0.5;
+		flex-shrink: 0;
+	}
+
+	.voice-limit {
+		margin-left: auto;
+		font-size: 11px;
+		color: rgba(235, 235, 245, 0.35);
+		flex-shrink: 0;
+	}
+
+	.voice-limit.full {
+		color: #ff453a;
 	}
 
 	.channel-action {

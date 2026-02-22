@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { X } from 'lucide-svelte';
+	import { X, Camera } from 'lucide-svelte';
 	import { PERMISSIONS } from '$lib/utils/permissions';
-	import { getRoles } from '$lib/services/api';
+	import { getRoles, uploadFile } from '$lib/services/api';
 	import type { Role, ServerMember } from '$lib/types';
 
 	interface Props {
-		server: { id: string; name: string; owner_id: string; is_public: boolean };
+		server: { id: string; name: string; owner_id: string; icon_url: string | null; is_public: boolean };
 		members: ServerMember[];
 		onclose: () => void;
-		onupdateserver: (data: { name?: string; is_public?: boolean }) => Promise<void>;
+		onupdateserver: (data: { name?: string; icon_url?: string; is_public?: boolean }) => Promise<void>;
 		oncreaterole: (name: string, color?: string, permissions?: number) => Promise<void>;
 		onupdaterole: (roleId: string, data: { name?: string; color?: string; permissions?: number }) => Promise<void>;
 		ondeleterole: (roleId: string) => Promise<void>;
@@ -40,16 +40,47 @@
 	// --- Overview Tab State ---
 	let editName = $state('');
 	let editPublic = $state(false);
+	let editIconUrl = $state<string | null>(null);
+	let iconInputEl: HTMLInputElement | undefined = $state();
+	let uploadingIcon = $state(false);
 	let overviewInitialized = false;
-	let overviewHasChanges = $derived(editName !== server.name || editPublic !== server.is_public);
+	let overviewHasChanges = $derived(
+		editName !== server.name || editPublic !== server.is_public || editIconUrl !== server.icon_url
+	);
 
 	$effect(() => {
 		if (!overviewInitialized) {
 			overviewInitialized = true;
 			editName = server.name;
 			editPublic = server.is_public;
+			editIconUrl = server.icon_url;
 		}
 	});
+
+	function getServerInitials(name: string): string {
+		return name
+			.split(/\s+/)
+			.map((w) => w[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2) || '?';
+	}
+
+	async function handleIconFileChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		uploadingIcon = true;
+		try {
+			const result = await uploadFile(file);
+			editIconUrl = result.url;
+		} catch (err) {
+			console.error('[ServerSettings] Icon upload failed:', err);
+		} finally {
+			uploadingIcon = false;
+			input.value = '';
+		}
+	}
 
 	// --- Roles Tab State ---
 	let selectedRoleId: string | null = $state(null);
@@ -306,7 +337,11 @@
 		if (!overviewHasChanges || saving) return;
 		saving = true;
 		try {
-			await onupdateserver({ name: editName.trim(), is_public: editPublic });
+			const data: { name?: string; icon_url?: string; is_public?: boolean } = {};
+			if (editName !== server.name) data.name = editName.trim();
+			if (editPublic !== server.is_public) data.is_public = editPublic;
+			if (editIconUrl !== server.icon_url) data.icon_url = editIconUrl ?? undefined;
+			await onupdateserver(data);
 		} finally {
 			saving = false;
 		}
@@ -414,6 +449,37 @@
 					</div>
 
 					<div class="content-body">
+						<!-- Icon Upload -->
+						<input
+							type="file"
+							accept="image/png,image/jpeg,image/gif,image/webp"
+							bind:this={iconInputEl}
+							onchange={handleIconFileChange}
+							hidden
+						/>
+						<div class="icon-upload-group">
+							<button
+								class="icon-upload-area"
+								onclick={() => iconInputEl?.click()}
+								disabled={uploadingIcon}
+								aria-label="Upload server icon"
+							>
+								{#if editIconUrl}
+									<img src={editIconUrl} alt="Server icon" class="icon-preview" />
+								{:else}
+									<span class="icon-initials">{getServerInitials(editName || server.name)}</span>
+								{/if}
+								<div class="icon-overlay">
+									{#if uploadingIcon}
+										<span class="spinner small"></span>
+									{:else}
+										<Camera size={20} />
+									{/if}
+								</div>
+							</button>
+							<span class="icon-upload-hint">Click to upload icon</span>
+						</div>
+
 						<div class="input-group">
 							<label for="server-name-input">Server Name</label>
 							<input
@@ -842,6 +908,80 @@
 		flex: 1;
 		padding: 0 40px 40px;
 		overflow-y: auto;
+	}
+
+	/* ===== Icon Upload ===== */
+	.icon-upload-group {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 24px;
+	}
+
+	.icon-upload-area {
+		position: relative;
+		width: 80px;
+		height: 80px;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.4);
+		border: 2px dashed rgba(255, 255, 255, 0.15);
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		transition:
+			border-color 0.2s ease,
+			background 0.2s ease;
+		padding: 0;
+		color: inherit;
+		font-family: inherit;
+	}
+
+	.icon-upload-area:hover {
+		border-color: rgba(255, 255, 255, 0.3);
+		background: rgba(0, 0, 0, 0.5);
+	}
+
+	.icon-upload-area:disabled {
+		cursor: not-allowed;
+		opacity: 0.6;
+	}
+
+	.icon-preview {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 50%;
+	}
+
+	.icon-initials {
+		font-size: 24px;
+		font-weight: 700;
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.icon-overlay {
+		position: absolute;
+		inset: 0;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: rgba(255, 255, 255, 0.8);
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	.icon-upload-area:hover .icon-overlay {
+		opacity: 1;
+	}
+
+	.icon-upload-hint {
+		font-size: 12px;
+		color: rgba(235, 235, 245, 0.4);
 	}
 
 	/* ===== Shared: Input Group ===== */

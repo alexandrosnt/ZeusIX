@@ -7,6 +7,14 @@ use tauri::{Emitter, Manager};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // A second instance was launched — focus the existing window
+            if let Some(win) = app.get_webview_window("main") {
+                win.show().ok();
+                win.unminimize().ok();
+                win.set_focus().ok();
+            }
+        }))
         .plugin(tauri_plugin_stronghold::Builder::new(|password| {
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
@@ -41,6 +49,7 @@ pub fn run() {
             // PTT (Push-to-Talk) global key listener
             ptt::start_ptt_listener,
             ptt::stop_ptt_listener,
+            ptt::set_whisper_key,
             // Screen capture (native → JPEG buffer)
             screencap::enumerate_capture_sources,
             screencap::start_capture,

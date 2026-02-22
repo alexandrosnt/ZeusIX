@@ -10,6 +10,7 @@ export interface UserSettings {
 	accentColor: string;
 	inputMode: InputMode;
 	pttKeybind: string;
+	whisperKeybind: string;
 	voiceActivityThreshold: number;
 	inputDevice: string;
 	outputDevice: string;
@@ -32,6 +33,7 @@ const DEFAULTS: UserSettings = {
 	accentColor: '#0a84ff',
 	inputMode: 'voice_activity',
 	pttKeybind: 'KeyV',
+	whisperKeybind: 'KeyB',
 	voiceActivityThreshold: 50,
 	inputDevice: 'default',
 	outputDevice: 'default',
@@ -54,6 +56,7 @@ class SettingsStore {
 	accentColor = $state('#0a84ff');
 	inputMode = $state<InputMode>('voice_activity');
 	pttKeybind = $state('KeyV');
+	whisperKeybind = $state('KeyB');
 	voiceActivityThreshold = $state(50);
 	inputDevice = $state('default');
 	outputDevice = $state('default');
@@ -92,6 +95,7 @@ class SettingsStore {
 			accentColor: this.accentColor,
 			inputMode: this.inputMode,
 			pttKeybind: this.pttKeybind,
+			whisperKeybind: this.whisperKeybind,
 			voiceActivityThreshold: this.voiceActivityThreshold,
 			inputDevice: this.inputDevice,
 			outputDevice: this.outputDevice,

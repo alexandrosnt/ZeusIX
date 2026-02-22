@@ -2,6 +2,7 @@ import { authStore } from '$lib/stores/auth.svelte';
 import { messagesStore } from '$lib/stores/messages.svelte';
 import { presenceStore } from '$lib/stores/presence.svelte';
 import { voiceStore } from '$lib/stores/voice.svelte';
+import { voiceChannelStore } from '$lib/stores/voiceChannels.svelte';
 import { dmsStore } from '$lib/stores/dms.svelte';
 import { callsStore } from '$lib/stores/calls.svelte';
 import { friendsStore } from '$lib/stores/friends.svelte';
@@ -298,14 +299,25 @@ class GatewayClient {
 						videoEnabled: false,
 						screenSharing: false
 					});
+					voiceChannelStore.addParticipant(channel_id, {
+						userId: user_id,
+						username,
+						muted: false,
+						deafened: false
+					});
 				} else if (action === 'leave') {
 					voiceStore.removeParticipant(user_id);
+					voiceChannelStore.removeParticipant(channel_id, user_id);
 				} else if (action === 'state_update') {
 					voiceStore.updateParticipant(user_id, {
 						...(muted !== undefined ? { muted } : {}),
 						...(deafened !== undefined ? { deafened } : {}),
 						...(videoEnabled !== undefined ? { videoEnabled } : {}),
 						...(screenSharing !== undefined ? { screenSharing } : {})
+					});
+					voiceChannelStore.updateParticipant(channel_id, user_id, {
+						...(muted !== undefined ? { muted } : {}),
+						...(deafened !== undefined ? { deafened } : {})
 					});
 				}
 				break;

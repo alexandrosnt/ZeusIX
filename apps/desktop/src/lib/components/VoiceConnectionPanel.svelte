@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { PhoneOff } from 'lucide-svelte';
+	import { PhoneOff, Megaphone } from 'lucide-svelte';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
+	import { whisperStore } from '$lib/stores/whisper.svelte';
 
 	let { ondisconnect, label, showServer = true, onclick }: { ondisconnect: () => void; label?: string; showServer?: boolean; onclick?: () => void } = $props();
 
@@ -108,6 +109,14 @@
 
 		<!-- Line 2: Channel name -->
 		<span class="channel-name">{channelName}</span>
+
+		<!-- Whisper indicator -->
+		{#if whisperStore.connected}
+			<div class="whisper-row" class:active={whisperStore.active}>
+				<Megaphone size={10} />
+				<span>Whisper {whisperStore.connectedChannelIds.length}ch</span>
+			</div>
+		{/if}
 
 		<!-- Line 3: Latency + signal bars -->
 		<div class="latency-row">
@@ -334,6 +343,22 @@
 		line-height: 1.2;
 	}
 
+
+	/* ---- Whisper indicator ---- */
+	.whisper-row {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding-left: 14px;
+		font-size: 10px;
+		color: rgba(255, 255, 255, 0.35);
+		transition: color 0.2s ease;
+	}
+
+	.whisper-row.active {
+		color: var(--accent-blue, #0a84ff);
+		text-shadow: 0 0 8px rgba(10, 132, 255, 0.4);
+	}
 
 	/* ---- Latency row ---- */
 	.latency-row {

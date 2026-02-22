@@ -22,6 +22,7 @@
 		oninvite?: () => void;
 		onsettings?: () => void;
 		ondelete?: () => void;
+		onleave?: () => void;
 		oncreatechannel?: (categoryId?: string) => void;
 		oncreategroupdm?: () => void;
 		candeletechannel?: boolean;
@@ -29,9 +30,10 @@
 		onvoicejoin?: (channelId: string) => void;
 		onvoicedisconnect?: () => void;
 		oncalldisconnect?: () => void;
+		onwhisperconfig?: () => void;
 	}
 
-	let { onaddfriend, oninvite, onsettings, ondelete, oncreatechannel, oncreategroupdm, candeletechannel = false, onchanneldelete, onvoicejoin, onvoicedisconnect, oncalldisconnect }: Props = $props();
+	let { onaddfriend, oninvite, onsettings, ondelete, onleave, oncreatechannel, oncreategroupdm, candeletechannel = false, onchanneldelete, onvoicejoin, onvoicedisconnect, oncalldisconnect, onwhisperconfig }: Props = $props();
 
 	let activeServer = $derived(serversStore.activeServer);
 	let isHome = $derived(!serversStore.activeServerId);
@@ -279,8 +281,10 @@
 					{isOwner}
 					onclose={() => showDropdown = false}
 					oninvite={() => { showDropdown = false; oninvite?.(); }}
-					onsettings={() => { showDropdown = false; onsettings?.(); }}
-					ondelete={() => { showDropdown = false; ondelete?.(); }}
+					onsettings={onsettings ? () => { showDropdown = false; onsettings?.(); } : undefined}
+					ondelete={ondelete ? () => { showDropdown = false; ondelete?.(); } : undefined}
+					onleave={onleave ? () => { showDropdown = false; onleave?.(); } : undefined}
+					onwhisperconfig={onwhisperconfig ? () => { showDropdown = false; onwhisperconfig?.(); } : undefined}
 				/>
 			{/if}
 		</div>

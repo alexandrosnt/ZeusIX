@@ -5,7 +5,7 @@
 		categories: { id: string; name: string }[];
 		defaultCategoryId?: string;
 		onclose: () => void;
-		oncreate: (name: string, type: 'text' | 'voice' | 'category', categoryId?: string) => Promise<void>;
+		oncreate: (name: string, type: 'text' | 'voice' | 'category', categoryId?: string, userLimit?: number) => Promise<void>;
 	}
 
 	let { categories, defaultCategoryId, onclose, oncreate }: Props = $props();
@@ -13,6 +13,7 @@
 	let channelName = $state('');
 	let channelType = $state<'text' | 'voice' | 'category'>('text');
 	let categoryId = $state('');
+	let userLimitStr = $state('');
 	let loading = $state(false);
 	let error = $state('');
 	let visible = $state(false);
@@ -56,10 +57,13 @@
 		error = '';
 
 		try {
+			const parsedLimit = userLimitStr ? parseInt(userLimitStr, 10) : undefined;
+			const finalLimit = parsedLimit && parsedLimit > 0 && channelType === 'voice' ? parsedLimit : undefined;
 			await oncreate(
 				channelName.trim(),
 				channelType,
-				categoryId || undefined
+				categoryId || undefined,
+				finalLimit
 			);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to create channel. Please try again.';
@@ -178,6 +182,22 @@
 						</svg>
 					</span>
 				</div>
+			</div>
+			{/if}
+
+			<!-- User Limit (voice channels only) -->
+			{#if channelType === 'voice'}
+			<div class="input-group">
+				<label for="channel-user-limit">User Limit</label>
+				<input
+					id="channel-user-limit"
+					type="number"
+					min="0"
+					placeholder="No limit"
+					bind:value={userLimitStr}
+					class="limit-input"
+				/>
+				<p class="field-hint">Leave empty or 0 for unlimited.</p>
 			</div>
 			{/if}
 		</div>
@@ -392,6 +412,35 @@
 		color: #ff453a;
 		margin: 0;
 		line-height: 1.4;
+	}
+
+	.limit-input {
+		width: 100%;
+		padding: 14px 16px;
+		background: rgba(0, 0, 0, 0.4);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 14px;
+		color: rgba(255, 255, 255, 0.95);
+		font-size: 16px;
+		font-family: inherit;
+		outline: none;
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+		box-sizing: border-box;
+	}
+
+	.limit-input::placeholder {
+		color: rgba(255, 255, 255, 0.25);
+	}
+
+	.limit-input:focus {
+		border-color: var(--accent-blue, #0a84ff);
+		box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 10, 132, 255), 0.25);
+	}
+
+	.field-hint {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.35);
+		margin: 0;
 	}
 
 	/* Select Dropdown */

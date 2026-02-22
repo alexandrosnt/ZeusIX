@@ -105,11 +105,12 @@ export async function createChannel(
 	serverId: string,
 	name: string,
 	channelType: string = 'text',
-	categoryId?: string
+	categoryId?: string,
+	userLimit?: number
 ) {
 	return request<Channel>(`/servers/${serverId}/channels`, {
 		method: 'POST',
-		body: JSON.stringify({ name, channel_type: channelType, category_id: categoryId })
+		body: JSON.stringify({ name, channel_type: channelType, category_id: categoryId, user_limit: userLimit ?? undefined })
 	});
 }
 
@@ -333,6 +334,12 @@ export async function updateServer(serverId: string, data: { name?: string; icon
 	});
 }
 
+export async function getVoiceStates(serverId: string) {
+	return request<{ channel_id: string; user_id: string; username: string }[]>(
+		`/servers/${serverId}/voice-states`
+	);
+}
+
 // Roles
 export async function getRoles(serverId: string) {
 	return request<import('$lib/types').Role[]>(`/servers/${serverId}/roles`);
@@ -397,8 +404,18 @@ export async function getScreenShareToken(channelId: string): Promise<{
 	});
 }
 
+export async function getWhisperTokens(
+	serverId: string,
+	channelIds: string[]
+): Promise<{ tokens: Array<{ channel_id: string; token: string }>; url: string }> {
+	return request('/voice/whisper-tokens', {
+		method: 'POST',
+		body: JSON.stringify({ server_id: serverId, channel_ids: channelIds })
+	});
+}
+
 // Channel management
-export async function updateChannel(channelId: string, data: { name?: string; topic?: string; position?: number; category_id?: string }) {
+export async function updateChannel(channelId: string, data: { name?: string; topic?: string; position?: number; category_id?: string; user_limit?: number | null }) {
 	return request<Channel>(`/channels/${channelId}`, {
 		method: 'PATCH',
 		body: JSON.stringify(data)

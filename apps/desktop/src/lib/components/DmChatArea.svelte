@@ -259,6 +259,7 @@
 	}
 
 	async function handleHangUp() {
+		sounds.stopLoop();
 		const call = callsStore.activeCall;
 		if (call) {
 			try {

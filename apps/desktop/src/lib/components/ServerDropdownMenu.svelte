@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { UserPlus, Settings, Trash2 } from 'lucide-svelte';
+	import { UserPlus, Settings, Trash2, LogOut, Megaphone } from 'lucide-svelte';
 
 	interface Props {
 		isOwner: boolean;
@@ -7,9 +7,11 @@
 		oninvite: () => void;
 		onsettings?: () => void;
 		ondelete?: () => void;
+		onleave?: () => void;
+		onwhisperconfig?: () => void;
 	}
 
-	let { isOwner, onclose, oninvite, onsettings, ondelete }: Props = $props();
+	let { isOwner, onclose, oninvite, onsettings, ondelete, onleave, onwhisperconfig }: Props = $props();
 
 	let visible = $state(false);
 
@@ -49,6 +51,12 @@
 		<UserPlus size={16} />
 		<span>Invite People</span>
 	</button>
+	{#if onwhisperconfig}
+		<button class="menu-item" role="menuitem" onclick={onwhisperconfig}>
+			<Megaphone size={16} />
+			<span>Whisper Broadcast</span>
+		</button>
+	{/if}
 	{#if onsettings}
 		<button class="menu-item" role="menuitem" onclick={onsettings}>
 			<Settings size={16} />
@@ -60,6 +68,13 @@
 		<button class="menu-item danger" role="menuitem" onclick={ondelete}>
 			<Trash2 size={16} />
 			<span>Delete Server</span>
+		</button>
+	{/if}
+	{#if onleave}
+		<div class="divider"></div>
+		<button class="menu-item danger" role="menuitem" onclick={onleave}>
+			<LogOut size={16} />
+			<span>Leave Server</span>
 		</button>
 	{/if}
 </div>

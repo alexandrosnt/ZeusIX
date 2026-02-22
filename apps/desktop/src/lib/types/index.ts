@@ -27,6 +27,7 @@ export interface Channel {
 	category_id: string | null;
 	position: number;
 	topic: string | null;
+	user_limit: number | null;
 }
 
 export interface Message {

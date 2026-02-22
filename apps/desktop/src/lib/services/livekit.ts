@@ -27,7 +27,10 @@ async function loadTauriApis() {
 import { voiceStore } from '$lib/stores/voice.svelte';
 import { authStore } from '$lib/stores/auth.svelte';
 import { settingsStore } from '$lib/stores/settings.svelte';
-import { getVoiceToken } from '$lib/services/api';
+import { whisperStore } from '$lib/stores/whisper.svelte';
+import { serversStore } from '$lib/stores/servers.svelte';
+import { channelsStore } from '$lib/stores/channels.svelte';
+import { getVoiceToken, getWhisperTokens } from '$lib/services/api';
 import { gateway } from '$lib/services/gateway';
 
 class LiveKitService {
@@ -43,6 +46,12 @@ class LiveKitService {
 	private nativeCapTimer: ReturnType<typeof setInterval> | null = null;
 	private nativeCapCanvas: HTMLCanvasElement | null = null;
 	private nativeCapStream: MediaStream | null = null;
+
+	// Whisper broadcast
+	private whisperRooms: Map<string, Room> = new Map(); // channelId → Room
+	private whisperDown = false;
+	private whisperUnlistenPress: (() => void) | null = null;
+	private whisperUnlistenRelease: (() => void) | null = null;
 
 	// Local VAD (Voice Activity Detection)
 	private micStream: MediaStream | null = null;
@@ -62,19 +71,23 @@ class LiveKitService {
 	private onVideoDetached: ((userId: string, source: 'camera' | 'screenshare') => void) | null = null;
 
 	/** Parse LiveKit identity string "userId:username" safely.
-	 *  Also handles bot identities like "bot-ss-userId:username". */
-	private parseIdentity(identity: string): { userId: string; username: string; isScreenShareBot: boolean } {
+	 *  Also handles bot identities like "bot-ss-userId:username" and "whisper-userId:username". */
+	private parseIdentity(identity: string): { userId: string; username: string; isScreenShareBot: boolean; isWhisperBroadcast: boolean } {
+		// Check for whisper broadcast prefix
+		const whisperPrefix = 'whisper-';
+		const isWhisper = identity.startsWith(whisperPrefix);
 		// Check for screenshare bot prefix
 		const botPrefix = 'bot-ss-';
 		const isBot = identity.startsWith(botPrefix);
-		const cleanIdentity = isBot ? identity.slice(botPrefix.length) : identity;
+		const cleanIdentity = isWhisper ? identity.slice(whisperPrefix.length) : isBot ? identity.slice(botPrefix.length) : identity;
 
 		const colonIdx = cleanIdentity.indexOf(':');
-		if (colonIdx === -1) return { userId: cleanIdentity, username: 'Unknown', isScreenShareBot: isBot };
+		if (colonIdx === -1) return { userId: cleanIdentity, username: 'Unknown', isScreenShareBot: isBot, isWhisperBroadcast: isWhisper };
 		return {
 			userId: cleanIdentity.slice(0, colonIdx),
 			username: cleanIdentity.slice(colonIdx + 1),
-			isScreenShareBot: isBot
+			isScreenShareBot: isBot,
+			isWhisperBroadcast: isWhisper
 		};
 	}
 
@@ -482,6 +495,13 @@ class LiveKitService {
 
 		// Connect to LiveKit (with status tracking)
 		this.connectRoom(url, token);
+
+		// After main room connects, set up whisper if targets exist
+		const serverId = serversStore.activeServerId;
+		if (serverId && whisperStore.hasTargets(serverId)) {
+			this.connectWhisperRooms(serverId);
+			this.setupWhisperPTT();
+		}
 	}
 
 	/** Build audio constraints using the selected input device */
@@ -688,9 +708,9 @@ class LiveKitService {
 		});
 
 		room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-			const { userId, username, isScreenShareBot } = this.parseIdentity(participant.identity);
-			// Don't add screenshare bot as a visible participant
-			if (isScreenShareBot) return;
+			const { userId, username, isScreenShareBot, isWhisperBroadcast } = this.parseIdentity(participant.identity);
+			// Don't add screenshare bot or whisper broadcast as visible participants
+			if (isScreenShareBot || isWhisperBroadcast) return;
 			voiceStore.addParticipant({
 				userId,
 				username,
@@ -703,7 +723,9 @@ class LiveKitService {
 		});
 
 		room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-			const { userId, isScreenShareBot } = this.parseIdentity(participant.identity);
+			const { userId, isScreenShareBot, isWhisperBroadcast } = this.parseIdentity(participant.identity);
+			// Whisper broadcast disconnect — no cleanup needed (they're invisible)
+			if (isWhisperBroadcast) return;
 			// When the screenshare bot disconnects, clean up screen share state
 			if (isScreenShareBot) {
 				voiceStore.updateParticipant(userId, { screenSharing: false });
@@ -1016,8 +1038,8 @@ class LiveKitService {
 		});
 
 		room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-			const { userId, username, isScreenShareBot } = this.parseIdentity(participant.identity);
-			if (isScreenShareBot) return;
+			const { userId, username, isScreenShareBot, isWhisperBroadcast } = this.parseIdentity(participant.identity);
+			if (isScreenShareBot || isWhisperBroadcast) return;
 			voiceStore.addParticipant({
 				userId,
 				username,
@@ -1030,7 +1052,8 @@ class LiveKitService {
 		});
 
 		room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-			const { userId, isScreenShareBot } = this.parseIdentity(participant.identity);
+			const { userId, isScreenShareBot, isWhisperBroadcast } = this.parseIdentity(participant.identity);
+			if (isWhisperBroadcast) return;
 			if (isScreenShareBot) {
 				voiceStore.updateParticipant(userId, { screenSharing: false });
 				const key = `${userId}-screenshare`;
@@ -1081,8 +1104,8 @@ class LiveKitService {
 		}
 
 		for (const p of room.remoteParticipants.values()) {
-			const { userId, username, isScreenShareBot } = this.parseIdentity(p.identity);
-			if (isScreenShareBot) continue;
+			const { userId, username, isScreenShareBot, isWhisperBroadcast } = this.parseIdentity(p.identity);
+			if (isScreenShareBot || isWhisperBroadcast) continue;
 			voiceStore.addParticipant({
 				userId,
 				username,
@@ -1121,6 +1144,8 @@ class LiveKitService {
 		this.stopStatsPolling();
 		this.stopLocalVAD();
 		this.teardownPTT();
+		this.teardownWhisperPTT();
+		this.disconnectWhisperRooms();
 		this.stopNativeCapture();
 		this.cleanupVideoElements();
 		this.room?.disconnect();
@@ -1132,6 +1157,8 @@ class LiveKitService {
 	async leaveVoiceChannel() {
 		this.stopLocalVAD();
 		await this.teardownPTT();
+		this.teardownWhisperPTT();
+		this.disconnectWhisperRooms();
 		this.stopNativeCapture();
 		this.stopStatsPolling();
 		this.cleanupVideoElements();
@@ -1241,8 +1268,9 @@ class LiveKitService {
 		try {
 			await loadTauriApis();
 			if (_invoke && _listen) {
-				// Start the Rust-side polling listener
-				await _invoke('start_ptt_listener', { keyCode });
+				// Start the Rust-side polling listener with optional whisper key
+				const whisperKeyCode = settingsStore.whisperKeybind;
+				await _invoke('start_ptt_listener', { keyCode, whisperKeyCode });
 				console.log('[PTT] Native listener started for:', keyCode);
 
 				// Listen for press/release events from Rust
@@ -1310,6 +1338,129 @@ class LiveKitService {
 		this.handleKeyDown = null;
 		this.handleKeyUp = null;
 		this.pttDown = false;
+	}
+
+	// ── Whisper Broadcast ──────────────────────────────────────────────
+
+	/** Connect publish-only rooms to all whisper target channels */
+	private async connectWhisperRooms(serverId: string) {
+		const targets = whisperStore.getTargets(serverId);
+		if (targets.length === 0) return;
+
+		try {
+			const { tokens, url } = await getWhisperTokens(serverId, targets);
+
+			for (const { channel_id, token } of tokens) {
+				const room = new Room();
+				await room.connect(url, token, { autoSubscribe: false });
+				// Do NOT enable mic yet — that's on whisper key press
+				this.whisperRooms.set(channel_id, room);
+			}
+
+			whisperStore.setConnected(true, Array.from(this.whisperRooms.keys()));
+			console.log(`[Whisper] Connected to ${this.whisperRooms.size} rooms`);
+		} catch (err) {
+			console.error('[Whisper] Failed to connect whisper rooms:', err);
+		}
+	}
+
+	/** Disconnect all whisper rooms */
+	private disconnectWhisperRooms() {
+		for (const room of this.whisperRooms.values()) {
+			room.disconnect();
+		}
+		this.whisperRooms.clear();
+		whisperStore.resetRuntime();
+	}
+
+	/** On whisper key press — enable mic on all whisper rooms */
+	private async whisperStart() {
+		if (this.whisperDown) return;
+		this.whisperDown = true;
+		whisperStore.setActive(true);
+
+		// Enable mic on all whisper rooms
+		for (const room of this.whisperRooms.values()) {
+			room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+		}
+
+		// Also enable mic on main room if in PTT mode (admin speaks to own channel too)
+		if (settingsStore.inputMode === 'push_to_talk' && this.room) {
+			this.room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+			const me = authStore.user;
+			if (me) voiceStore.updateParticipant(me.id, { speaking: true });
+		}
+	}
+
+	/** On whisper key release — disable mic on all whisper rooms */
+	private async whisperStop() {
+		if (!this.whisperDown) return;
+		this.whisperDown = false;
+		whisperStore.setActive(false);
+
+		// Disable mic on all whisper rooms
+		for (const room of this.whisperRooms.values()) {
+			room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+		}
+
+		// Also disable main room mic if in PTT mode AND normal PTT isn't held
+		if (settingsStore.inputMode === 'push_to_talk' && this.room && !this.pttDown) {
+			this.room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+			const me = authStore.user;
+			if (me) voiceStore.updateParticipant(me.id, { speaking: false });
+		}
+	}
+
+	/** Set up whisper PTT listeners (Tauri native or window fallback) */
+	private async setupWhisperPTT() {
+		const whisperKeyCode = settingsStore.whisperKeybind;
+
+		try {
+			await loadTauriApis();
+			if (_invoke && _listen) {
+				// Set whisper key in Rust (listener already running from setupPTT)
+				await _invoke('set_whisper_key', { keyCode: whisperKeyCode });
+
+				const unPress = await _listen('whisper-press', () => this.whisperStart());
+				const unRelease = await _listen('whisper-release', () => this.whisperStop());
+
+				this.whisperUnlistenPress = unPress;
+				this.whisperUnlistenRelease = unRelease;
+				console.log('[Whisper] Native whisper PTT active for:', whisperKeyCode);
+				return;
+			}
+		} catch (err) {
+			console.error('[Whisper] Native whisper PTT failed, using window fallback:', err);
+		}
+
+		// Fallback: window event listeners
+		const handleDown = (e: KeyboardEvent) => {
+			if (e.code !== settingsStore.whisperKeybind || e.repeat) return;
+			this.whisperStart();
+		};
+		const handleUp = (e: KeyboardEvent) => {
+			if (e.code !== settingsStore.whisperKeybind) return;
+			this.whisperStop();
+		};
+
+		window.addEventListener('keydown', handleDown);
+		window.addEventListener('keyup', handleUp);
+
+		this.whisperUnlistenPress = () => window.removeEventListener('keydown', handleDown);
+		this.whisperUnlistenRelease = () => window.removeEventListener('keyup', handleUp);
+	}
+
+	/** Tear down whisper PTT listeners */
+	private teardownWhisperPTT() {
+		if (this.whisperUnlistenPress) {
+			this.whisperUnlistenPress();
+			this.whisperUnlistenPress = null;
+		}
+		if (this.whisperUnlistenRelease) {
+			this.whisperUnlistenRelease();
+			this.whisperUnlistenRelease = null;
+		}
+		this.whisperDown = false;
 	}
 
 	/** Switch the microphone device on the active room */
