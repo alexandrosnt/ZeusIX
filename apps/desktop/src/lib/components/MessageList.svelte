@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Hash, Crown, Phone, PhoneOff } from 'lucide-svelte';
+	import { Hash, Crown, Phone, PhoneOff, Trash2 } from 'lucide-svelte';
 	import { messagesStore } from '$lib/stores/messages.svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
 	import { membersStore } from '$lib/stores/members.svelte';
@@ -15,11 +15,13 @@
 
 	interface Props {
 		dmChannelId?: string;
+		canManageMessages?: boolean;
 	}
 
-	let { dmChannelId }: Props = $props();
+	let { dmChannelId, canManageMessages = false }: Props = $props();
 
 	let wrapper: HTMLDivElement | undefined = $state();
+	let hoveredMessageId: string | null = $state(null);
 
 	// Context menu state
 	let ctxMenu = $state<{ x: number; y: number; messageId: string; channelId: string } | null>(null);
@@ -234,7 +236,8 @@
 			{@const roleColor = membersStore.getTopRoleColor(message.author_id)}
 			{@const nameColor = roleColor ?? fallbackColor}
 			{@const avatarUrl = message.author?.avatar_url}
-			<div class="message" class:compact={settingsStore.compactMode} oncontextmenu={(e) => handleMessageContext(e, message.id, message.channel_id)}>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="message" class:compact={settingsStore.compactMode} class:hovered={hoveredMessageId === message.id} oncontextmenu={(e) => handleMessageContext(e, message.id, message.channel_id)} onmouseenter={() => hoveredMessageId = message.id} onmouseleave={() => hoveredMessageId = null}>
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div class="msg-avatar clickable" style:background-color={fallbackColor} onclick={(e) => handleAuthorClick(message.author_id, e)} role="button" tabindex="0">
 					{#if avatarUrl}
@@ -253,6 +256,13 @@
 					</div>
 					<div class="msg-text" style:font-size="{settingsStore.chatFontSize}px">{#each parseMarkdown(message.content, knownUsernames) as seg, i (i)}{#if seg.type === 'code-block'}<CodeBlock code={seg.code} language={seg.language} />{:else if seg.type === 'code-inline'}<code class="inline-code">{seg.code}</code>{:else if seg.type === 'bold'}<strong>{seg.text}</strong>{:else if seg.type === 'italic'}<em>{seg.text}</em>{:else if seg.type === 'strikethrough'}<s>{seg.text}</s>{:else if seg.type === 'mention'}<span class="mention" role="button" tabindex="0" onclick={(e) => { const member = membersStore.members.find(m => m.user?.username?.toLowerCase() === seg.username?.toLowerCase()); if (member) handleAuthorClick(member.user_id, e); }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { const member = membersStore.members.find(m => m.user?.username?.toLowerCase() === seg.username?.toLowerCase()); if (member) handleAuthorClick(member.user_id, e); } }}>{seg.text}</span>{:else}{seg.text}{/if}{/each}</div>
 				</div>
+				{#if hoveredMessageId === message.id && (message.author_id === authStore.user?.id || canManageMessages)}
+					<div class="msg-actions">
+						<button class="msg-action-btn danger" onclick={() => handleDeleteMsg(message.channel_id, message.id)} title="Delete message">
+							<Trash2 size={14} />
+						</button>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	{/each}
@@ -373,6 +383,52 @@
 		display: flex;
 		gap: 16px;
 		animation: fadeIn 0.3s ease-out forwards;
+		position: relative;
+		padding: 4px 8px;
+		border-radius: 6px;
+		transition: background-color 0.15s ease;
+	}
+
+	.message.hovered {
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.msg-actions {
+		position: absolute;
+		top: -8px;
+		right: 4px;
+		display: flex;
+		gap: 2px;
+		background: rgba(var(--glass-heavy-rgb, 28, 28, 30), 0.95);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		padding: 2px;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+		z-index: 10;
+	}
+
+	.msg-action-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: none;
+		background: transparent;
+		border-radius: 4px;
+		color: rgba(235, 235, 245, 0.5);
+		cursor: pointer;
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.msg-action-btn:hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: rgba(235, 235, 245, 0.9);
+	}
+
+	.msg-action-btn.danger:hover {
+		background: rgba(255, 69, 58, 0.15);
+		color: #ff453a;
 	}
 
 	.message.compact {

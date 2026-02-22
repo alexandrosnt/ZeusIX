@@ -27,13 +27,14 @@
 		oncreategroupdm?: () => void;
 		candeletechannel?: boolean;
 		onchanneldelete?: (channelId: string) => void;
+		onchanneledit?: (channel: import('$lib/types').Channel) => void;
 		onvoicejoin?: (channelId: string) => void;
 		onvoicedisconnect?: () => void;
 		oncalldisconnect?: () => void;
 		onwhisperconfig?: () => void;
 	}
 
-	let { onaddfriend, oninvite, onsettings, ondelete, onleave, oncreatechannel, oncreategroupdm, candeletechannel = false, onchanneldelete, onvoicejoin, onvoicedisconnect, oncalldisconnect, onwhisperconfig }: Props = $props();
+	let { onaddfriend, oninvite, onsettings, ondelete, onleave, oncreatechannel, oncreategroupdm, candeletechannel = false, onchanneldelete, onchanneledit, onvoicejoin, onvoicedisconnect, oncalldisconnect, onwhisperconfig }: Props = $props();
 
 	let activeServer = $derived(serversStore.activeServer);
 	let isHome = $derived(!serversStore.activeServerId);
@@ -289,7 +290,7 @@
 			{/if}
 		</div>
 		<div class="channel-list-container">
-			<ChannelList {oncreatechannel} {candeletechannel} {onchanneldelete} {onvoicejoin} />
+			<ChannelList {oncreatechannel} {candeletechannel} {onchanneldelete} {onchanneledit} {onvoicejoin} />
 		</div>
 	{/if}
 

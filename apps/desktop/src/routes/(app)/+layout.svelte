@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { untrack } from 'svelte';
-	import type { ServerMember } from '$lib/types';
+	import type { ServerMember, Channel } from '$lib/types';
 	import { goto } from '$app/navigation';
 
 	import Titlebar from '$lib/components/Titlebar.svelte';
@@ -17,6 +17,7 @@
 	import IncomingCallModal from '$lib/components/IncomingCallModal.svelte';
 	import CreateGroupDmModal from '$lib/components/CreateGroupDmModal.svelte';
 	import WhisperConfigModal from '$lib/components/WhisperConfigModal.svelte';
+	import EditChannelModal from '$lib/components/EditChannelModal.svelte';
 
 	import { serversStore } from '$lib/stores/servers.svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
@@ -46,6 +47,7 @@
 		reorderRoles as apiReorderRoles,
 		listDms,
 		acceptCall, joinCall, leaveCall, declineCall, getActiveCall,
+		kickMember as apiKickMember,
 	} from '$lib/services/api';
 	import { gateway } from '$lib/services/gateway';
 	// Lazy-load livekit-client (~50MB) — only fetched on first voice/call use
@@ -61,6 +63,7 @@
 	let showInviteModal = $state(false);
 	let showCreateGroupDm = $state(false);
 	let showWhisperConfig = $state(false);
+	let editingChannel = $state<Channel | null>(null);
 	let createChannelCategory = $state<string | undefined>(undefined);
 	let members = $state<ServerMember[]>([]);
 	let loading = $state(true);
@@ -76,6 +79,7 @@
 	let isOwner = $derived(serversStore.activeServer?.owner_id === authStore.user?.id);
 	let canManageServer = $derived(isOwner || hasPermission(myRoles, PERMISSIONS.MANAGE_SERVER));
 	let canManageChannels = $derived(isOwner || hasPermission(myRoles, PERMISSIONS.MANAGE_CHANNELS));
+	let canKick = $derived(isOwner || hasPermission(myRoles, PERMISSIONS.KICK_MEMBERS));
 
 	// Keep members store in sync with local state
 	$effect(() => {
@@ -397,6 +401,17 @@
 		members = await getMembers(serverId);
 	}
 
+	async function handleKickMember(userId: string) {
+		const serverId = serversStore.activeServerId;
+		if (!serverId) return;
+		try {
+			await apiKickMember(serverId, userId);
+			members = members.filter((m) => m.user_id !== userId);
+		} catch (err) {
+			console.error('[App] Failed to kick member:', err);
+		}
+	}
+
 	async function handleVoiceJoin(channelId: string) {
 		(await lk()).joinVoiceChannel(channelId);
 	}
@@ -536,6 +551,7 @@
 			oncreatechannel={canManageChannels ? (categoryId) => { createChannelCategory = categoryId; showCreateChannel = true; } : undefined}
 			candeletechannel={canManageChannels}
 			onchanneldelete={handleDeleteChannel}
+			onchanneledit={canManageChannels ? (ch) => { editingChannel = ch; } : undefined}
 			onvoicejoin={handleVoiceJoin}
 			onvoicedisconnect={handleVoiceDisconnect}
 			oncalldisconnect={handleEndCall}
@@ -561,6 +577,8 @@
 				canmanageroles={canManageServer}
 				onassignrole={handleAssignRole}
 				onremoverole={handleRemoveRole}
+				cankick={canKick}
+				onkick={handleKickMember}
 			/>
 		{/if}
 	</div>
@@ -622,6 +640,14 @@
 	<WhisperConfigModal
 		serverId={serversStore.activeServerId}
 		onclose={() => showWhisperConfig = false}
+	/>
+{/if}
+
+{#if editingChannel}
+	<EditChannelModal
+		channel={editingChannel}
+		categories={channelsStore.categories.filter((c) => c.id !== '__uncategorized').map((c) => ({ id: c.id, name: c.name }))}
+		onclose={() => editingChannel = null}
 	/>
 {/if}
 

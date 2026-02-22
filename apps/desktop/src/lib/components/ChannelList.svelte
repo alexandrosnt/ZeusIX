@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronDown, Hash, Volume2, Plus, Trash2, MicOff, HeadphoneOff, Megaphone } from 'lucide-svelte';
+	import { ChevronDown, Hash, Volume2, Plus, Trash2, Pencil, MicOff, HeadphoneOff, Megaphone } from 'lucide-svelte';
 	import { channelsStore } from '$lib/stores/channels.svelte';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { voiceChannelStore } from '$lib/stores/voiceChannels.svelte';
@@ -24,10 +24,11 @@
 		oncreatechannel?: (categoryId?: string) => void;
 		candeletechannel?: boolean;
 		onchanneldelete?: (channelId: string) => void;
+		onchanneledit?: (channel: Channel) => void;
 		onvoicejoin?: (channelId: string) => void;
 	}
 
-	let { oncreatechannel, candeletechannel = false, onchanneldelete, onvoicejoin }: Props = $props();
+	let { oncreatechannel, candeletechannel = false, onchanneldelete, onchanneledit, onvoicejoin }: Props = $props();
 
 	let collapsedCategories = $state(new Set<string>());
 	let hoveredChannel = $state<string | null>(null);
@@ -180,6 +181,13 @@
 							{/if}
 						</button>
 						{#if candeletechannel && hoveredChannel === channel.id}
+							<button
+								class="channel-action edit"
+								aria-label="Edit {channel.name}"
+								onclick={(e) => { e.stopPropagation(); onchanneledit?.(channel); }}
+							>
+								<Pencil size={14} />
+							</button>
 							<button
 								class="channel-action delete"
 								aria-label="Delete {channel.name}"
@@ -483,6 +491,15 @@
 		display: flex;
 		align-items: center;
 		transition: color 0.15s;
+	}
+
+	.channel-action.edit {
+		color: rgba(235, 235, 245, 0.3);
+		right: 28px;
+	}
+
+	.channel-action.edit:hover {
+		color: var(--accent-blue, #0a84ff);
 	}
 
 	.channel-action.delete {

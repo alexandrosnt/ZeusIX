@@ -5,16 +5,20 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { getRoles } from '$lib/services/api';
 	import type { ServerMember, Role } from '$lib/types';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
 
 	interface Props {
 		members: ServerMember[];
 		canmanageroles?: boolean;
 		onassignrole?: (userId: string, roleId: string) => Promise<void>;
 		onremoverole?: (userId: string, roleId: string) => Promise<void>;
+		cankick?: boolean;
+		onkick?: (userId: string) => void;
 	}
 
-	let { members, canmanageroles = false, onassignrole, onremoverole }: Props = $props();
+	let { members, canmanageroles = false, onassignrole, onremoverole, cankick = false, onkick }: Props = $props();
 
+	let memberCtxMenu = $state<{ x: number; y: number; userId: string } | null>(null);
 	let selectedMemberId: string | null = $state(null);
 	let selectedMemberRaw = $derived(selectedMemberId ? members.find(m => m.user_id === selectedMemberId) ?? null : null);
 	// Use authStore.user for current user's profile (always up-to-date after edits)
@@ -66,6 +70,13 @@
 			.filter(r => r.position > 0)
 			.sort((a, b) => b.position - a.position)
 			.slice(0, 2);
+	}
+
+	function handleMemberContext(e: MouseEvent, member: ServerMember) {
+		e.preventDefault();
+		// Don't show context menu if we can't kick, or if it's the owner, or if it's ourselves
+		if (!cankick || member.user_id === ownerId || member.user_id === authStore.user?.id) return;
+		memberCtxMenu = { x: e.clientX, y: e.clientY, userId: member.user_id };
 	}
 
 	function handleMemberClick(member: ServerMember, e: MouseEvent) {
@@ -237,7 +248,7 @@
 				{@const status = presenceStore.getStatus(member.user_id)}
 				{@const roleColor = getTopRoleColor(member)}
 				{@const topRoles = getTopRoles(member)}
-				<button class="member-item" class:selected={selectedMember?.user_id === member.user_id} onclick={(e) => handleMemberClick(member, e)}>
+				<button class="member-item" class:selected={selectedMember?.user_id === member.user_id} onclick={(e) => handleMemberClick(member, e)} oncontextmenu={(e) => handleMemberContext(e, member)}>
 					<div class="member-avatar-container">
 						<div class="member-avatar" style:background-color={getUserColor(username)}>
 							{#if member.user?.avatar_url}
@@ -283,7 +294,7 @@
 			{@const status = presenceStore.getStatus(member.user_id)}
 			{@const roleColor = getTopRoleColor(member)}
 			{@const topRoles = getTopRoles(member)}
-			<button class="member-item offline" onclick={(e) => handleMemberClick(member, e)}>
+			<button class="member-item offline" onclick={(e) => handleMemberClick(member, e)} oncontextmenu={(e) => handleMemberContext(e, member)}>
 				<div class="member-avatar-container">
 					<div class="member-avatar" style:background-color={getUserColor(username)}>
 						{#if member.user?.avatar_url}
@@ -406,6 +417,17 @@
 			{/if}
 		</div>
 	</div>
+{/if}
+
+{#if memberCtxMenu}
+	<ContextMenu
+		x={memberCtxMenu.x}
+		y={memberCtxMenu.y}
+		items={[
+			{ label: 'Kick Member', danger: true, action: () => { onkick?.(memberCtxMenu!.userId); memberCtxMenu = null; } }
+		]}
+		onclose={() => memberCtxMenu = null}
+	/>
 {/if}
 
 <style>

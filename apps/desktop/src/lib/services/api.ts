@@ -326,6 +326,10 @@ export async function getMembers(serverId: string) {
 	}));
 }
 
+export async function kickMember(serverId: string, userId: string) {
+	return request<{ kicked: boolean }>(`/servers/${serverId}/members/${userId}`, { method: 'DELETE' });
+}
+
 // Server management
 export async function updateServer(serverId: string, data: { name?: string; icon_url?: string; is_public?: boolean }) {
 	return request<Server>(`/servers/${serverId}`, {
