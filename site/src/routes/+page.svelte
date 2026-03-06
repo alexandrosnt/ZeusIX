@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { detectLocale, t, SUPPORTED_LOCALES, LOCALE_NAMES, type Locale } from '$lib/i18n';
 
 	let locale: Locale = $state('en');
@@ -127,7 +128,7 @@
 <!-- Floating Glass Nav -->
 <nav>
 	<a href="#top" class="logo">
-		<img src="/logo.png" alt="ZeusIX" class="logo-icon" />
+		<img src="{base}/logo.png" alt="ZeusIX" class="logo-icon" />
 		<span>ZeusIX</span>
 	</a>
 	<div class="nav-links">
@@ -300,7 +301,7 @@
 <footer>
 	<div class="footer-inner">
 		<div class="footer-brand">
-			<img src="/logo.png" alt="ZeusIX" class="logo-icon small" />
+			<img src="{base}/logo.png" alt="ZeusIX" class="logo-icon small" />
 			<span>ZeusIX</span>
 		</div>
 		<div class="footer-links">
