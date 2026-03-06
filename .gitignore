@@ -8,6 +8,7 @@ target/
 # SvelteKit
 .svelte-kit/
 apps/desktop/build/
+site/build/
 
 # Tauri auto-generated
 apps/desktop/src-tauri/gen/schemas/
