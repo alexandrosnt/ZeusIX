@@ -29,6 +29,7 @@ pub fn run() {
             auto_grant_permissions(app)?;
             setup_tray(app)?;
             setup_close_to_tray(app)?;
+            setup_macos(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -129,6 +130,70 @@ fn setup_close_to_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error
         }
     });
 
+    Ok(())
+}
+
+/// On macOS:
+/// 1. Add a native app/edit/window menu so Cmd+C/V/X/A/Z/M/Q all work.
+/// 2. Set the title bar style to overlay (keeps native traffic lights).
+#[cfg(target_os = "macos")]
+fn setup_macos(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::menu::{MenuBuilder, SubmenuBuilder};
+
+    // Standard macOS App menu — About, Services, Hide, Quit
+    let app_submenu = SubmenuBuilder::new(app, "ZeusIX")
+        .about(None)
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+
+    // Edit menu — REQUIRED for Cmd+C/V/X/A/Z to work on macOS
+    let edit_submenu = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+
+    // Window menu — Minimize (Cmd+M), Maximize, Close, Fullscreen
+    let window_submenu = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .maximize()
+        .close_window()
+        .separator()
+        .fullscreen()
+        .build()?;
+
+    let menu = MenuBuilder::new(app)
+        .items(&[&app_submenu, &edit_submenu, &window_submenu])
+        .build()?;
+    app.set_menu(menu)?;
+
+    // Set title bar style to overlay — keeps native traffic lights
+    // while our custom content extends behind the title area.
+    if let Some(window) = app.get_webview_window("main") {
+        use tauri::TitleBarStyle;
+        window.set_title_bar_style(TitleBarStyle::Overlay)?;
+    }
+
+    Ok(())
+}
+
+/// On Windows/Linux, remove decorations so our custom titlebar is used.
+#[cfg(not(target_os = "macos"))]
+fn setup_macos(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_decorations(false)?;
+    }
     Ok(())
 }
 

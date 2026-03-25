@@ -150,8 +150,19 @@
 	function getDmContextItems(dm: typeof dmChannels[number]) {
 		return [
 			{
+				label: 'Close Conversation',
+				action: async () => {
+					try {
+						await closeDm(dm.id);
+						dmsStore.removeChannel(dm.id);
+						if (activeDmId === dm.id) await goto('/');
+					} catch { /* silent */ }
+				}
+			},
+			{
 				label: 'Block',
 				danger: true,
+				divider: true,
 				action: async () => {
 					if (!dm.recipient_id) return;
 					try {
@@ -165,10 +176,8 @@
 			{
 				label: 'Remove Friend',
 				danger: true,
-				divider: true,
 				action: async () => {
 					if (!dm.recipient_id) return;
-					// Find friendship by user_id
 					const friendship = friendsStore.friends.find(f => f.user_id === dm.recipient_id);
 					if (!friendship) return;
 					try {

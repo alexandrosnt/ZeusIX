@@ -1,5 +1,13 @@
 <script lang="ts">
 	let isMaximized = $state(false);
+	let isMacOS = $state(false);
+
+	// Detect macOS — native traffic lights handle window controls there
+	if (typeof navigator !== 'undefined') {
+		const ua = navigator.userAgent.toLowerCase();
+		const platform = ((navigator as any).userAgentData?.platform || navigator.platform || '').toLowerCase();
+		isMacOS = platform.includes('mac') || ua.includes('macintosh') || ua.includes('mac os');
+	}
 
 	async function getWindow() {
 		try {
@@ -67,8 +75,9 @@
 	}
 </script>
 
-<div class="titlebar" onmousedown={handleTitlebarMousedown} role="toolbar" tabindex="-1">
+<div class="titlebar" class:macos={isMacOS} data-tauri-drag-region onmousedown={handleTitlebarMousedown} role="toolbar" tabindex="-1">
 	<span class="titlebar-title">ZeusIX</span>
+	{#if !isMacOS}
 	<div class="window-controls" onmousedown={(e) => e.stopPropagation()} role="toolbar" tabindex="-1">
 		<button class="control minimize" onclick={handleMinimize} aria-label="Minimize">
 			<svg width="10" height="1" viewBox="0 0 10 1">
@@ -95,6 +104,7 @@
 			</svg>
 		</button>
 	</div>
+	{/if}
 </div>
 
 <style>
@@ -111,6 +121,10 @@
 		z-index: 100;
 		flex-shrink: 0;
 		cursor: default;
+	}
+
+	.titlebar.macos {
+		padding-left: 78px; /* Space for native traffic lights */
 	}
 
 	.titlebar-title {
