@@ -9,5 +9,11 @@
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ZeusIX needs microphone access for voice calls and voice channels.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>ZeusIX needs camera access for video calls.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>ZeusIX needs screen capture access for screen sharing.</string>
 </dict>
 </plist>
