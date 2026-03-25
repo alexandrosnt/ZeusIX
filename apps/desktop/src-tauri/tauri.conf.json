@@ -51,12 +51,7 @@
     ],
     "macOS": {
       "entitlements": "./Entitlements.plist",
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSAllowsArbitraryLoadsInWebContent": true
-        }
-      }
+      "infoPlist": "./Info.plist"
     }
   }
 }
